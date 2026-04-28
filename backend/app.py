@@ -119,6 +119,10 @@ def analyze_route_with_gemma(route_list, serper_context):
 def health_check():
     return jsonify({"status": "Smartpath API is running natively", "version": "1.0"}), 200
 
+@app.route('/favicon.ico')
+def favicon():
+    return '', 204
+
 @app.route('/api/shipments', methods=['GET'])
 def get_shipments():
     user_id = request.args.get('user_id')

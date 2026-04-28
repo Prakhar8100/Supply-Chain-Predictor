@@ -10,7 +10,7 @@ const Dashboard = ({ fleetName }) => {
 
   const fetchHistory = async () => {
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://supply-chain-predictor.onrender.com';
       const res = await axios.get(`${API_URL}/api/shipments?user_id=${fleetName}`)
       setHistory(res.data.reverse())
       if (res.data.length > 0 && !currentShipment) {
@@ -30,7 +30,7 @@ const Dashboard = ({ fleetName }) => {
     if (!routeInput) return
     setLoading(true)
     try {
-      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const API_URL = import.meta.env.VITE_API_URL || 'https://supply-chain-predictor.onrender.com';
       const res = await axios.post(`${API_URL}/api/shipments`, {
         user_id: fleetName,
         route: routeInput,
