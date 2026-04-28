@@ -71,6 +71,23 @@ SmartPath is an AI-driven logistics rerouter and supply chain risk predictor. It
 
 ---
 
+## ☁️ Render Deployment (Backend)
+
+To deploy the Flask backend on [Render](https://render.com/), follow these steps:
+
+1. Create a new **Web Service** on Render and connect your repository.
+2. Use the following configuration:
+   - **Root Directory**: `backend` (or leave blank if using the root `requirements.txt`)
+   - **Environment**: `Python`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python app.py` (if Root Directory is `backend`) OR `cd backend && python app.py` (if no Root Directory is set)
+3. Add your Environment Variables under the **Environment** tab:
+   - `MONGO_URI`
+   - `SERPER_API_KEY`
+   - `OPENROUTER_API_KEY`
+
+---
+
 ## 📊 Usage
 1. Upon loading the app, enter your **Fleet/Company Name** in the prompt. This isolates your data from other users.
 2. Enter a planned logistics route (e.g., `Delhi, Meerut, Haridwar`).
