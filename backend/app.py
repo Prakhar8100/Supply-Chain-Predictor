@@ -114,6 +114,11 @@ def analyze_route_with_gemma(route_list, serper_context):
         print(f"[AI ERROR] Analysis failed: {e}")
         return None
 
+# --- NEW: Health Check Route to fix Render 404 Errors ---
+@app.route('/', methods=['GET'])
+def health_check():
+    return jsonify({"status": "Smartpath API is running natively", "version": "1.0"}), 200
+
 @app.route('/api/shipments', methods=['GET'])
 def get_shipments():
     user_id = request.args.get('user_id')
@@ -195,4 +200,6 @@ def create_shipment():
     return jsonify(shipment_doc), 201
 
 if __name__ == '__main__':
-    app.run(port=5000, debug=True)
+    # --- FIXED: Render requires binding to 0.0.0.0 and a dynamic port ---
+    port = int(os.environ.get('PORT', 10000))
+    app.run(host='0.0.0.0', port=port, debug=False)
