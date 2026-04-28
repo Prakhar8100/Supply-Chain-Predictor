@@ -10,7 +10,8 @@ const Dashboard = ({ fleetName }) => {
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/shipments?user_id=${fleetName}`)
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await axios.get(`${API_URL}/api/shipments?user_id=${fleetName}`)
       setHistory(res.data.reverse())
       if (res.data.length > 0 && !currentShipment) {
         setCurrentShipment(res.data[0])
@@ -29,7 +30,8 @@ const Dashboard = ({ fleetName }) => {
     if (!routeInput) return
     setLoading(true)
     try {
-      const res = await axios.post('http://localhost:5000/api/shipments', {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+      const res = await axios.post(`${API_URL}/api/shipments`, {
         user_id: fleetName,
         route: routeInput,
         timestamp: new Date().toISOString()
