@@ -1,52 +1,113 @@
-# Supply Chain Predictor (SmartPath)
+# 🚚 Supply Chain Predictor (SmartPath)
 
-SmartPath is an AI-driven logistics rerouter and supply chain risk predictor. It analyzes shipment routes in real-time by aggressively scraping Google Search (via Serper) for live road traffic, accidents, and weather data. It then utilizes Google Gemma 3 (via OpenRouter) to assess risks, generate a situation analysis, and automatically provide optimized alternative routes when severe disruptions are detected.
+> **AI-Powered Logistics Rerouter & Supply Chain Risk Predictor**
 
-## 🚀 Features
+SmartPath is an intelligent logistics platform that analyzes shipment routes in real-time using live web data and AI-driven insights. It fetches real-time traffic, accidents, and weather data via Serper API, then uses Google Gemma 3 to assess risks and automatically generate optimized alternative routes when disruptions are detected.
 
-- **Live Disruption Tracking**: Fetches real-time web data specifically targeted at traffic accidents, road closures, and severe weather.
-- **AI Rerouting & Situation Analysis**: Uses Google Gemma 3 12B (via OpenRouter) to evaluate risk factors, summarize the ongoing road situation, and dynamically drop blocked cities from the route.
-- **Automatic API Rate-Limit Recovery**: Built-in 429 error handling with a graceful backoff-and-retry mechanism for stable AI queries on the free tier.
-- **Zero-Login Multi-Tenancy**: Safely separates shipment history by dynamically scoping database queries based on your chosen Fleet/Company name at launch.
-- **Dynamic Glassmorphism Dashboard**: Visualizes shipment states (Monitoring vs. Action Required) with real-time, color-coded risk indicators.
+## 🎯 Key Features
+
+- **🔍 Live Disruption Detection**: Real-time web scraping for traffic accidents, road closures, and severe weather conditions
+- **🤖 AI-Powered Route Optimization**: Google Gemma 3 12B analyzes risks and dynamically suggests alternative routes
+- **⚡ Smart Rate-Limit Handling**: Automatic 429 error recovery with graceful backoff mechanism for reliable API operations
+- **🏢 Zero-Login Multi-Tenancy**: Fleet-based data isolation with no authentication required
+- **📊 Real-Time Dashboard**: Glassmorphism UI with color-coded risk indicators (Monitoring vs. Action Required)
+- **🗺️ Route Intelligence**: Automatic removal of blocked cities from suggested routes when risk is detected
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 19, Vite, Lucide React, CSS3 (Custom Glassmorphism UI)
-- **Backend**: Flask (Python), MongoDB, OpenRouter API (Gemma 3), Serper.dev API
+### Frontend
+- **Framework**: React 19.2.5
+- **Build Tool**: Vite 8.0
+- **UI Components**: Lucide React (Icons)
+- **HTTP Client**: Axios 1.15.2
+- **Styling**: CSS3 (Glassmorphism, Custom Theme)
+
+### Backend
+- **Framework**: Flask 3.0.3
+- **Database**: MongoDB 4.7+
+- **CORS**: Flask-CORS 4.0.1
+- **Environment**: Python-dotenv 1.0.1
+- **HTTP**: Requests 2.31.0
+
+### External APIs
+- **Search Data**: [Serper.dev](https://serper.dev) (Google Search API)
+- **AI Model**: [OpenRouter](https://openrouter.ai) - Google Gemma 3 12B (Free Tier)
+
+---
+
+## 📋 Prerequisites
+
+Before you begin, ensure you have:
+- [Node.js](https://nodejs.org/) (v18+)
+- [Python](https://www.python.org/) (3.9+)
+- [MongoDB](https://www.mongodb.com/try/download/community) (Local or Atlas)
+- API Keys:
+  - Serper API Key (free tier available at [serper.dev](https://serper.dev))
+  - OpenRouter API Key (free tier available at [openrouter.ai](https://openrouter.ai))
 
 ---
 
 ## ⚙️ Setup & Installation
 
-### 1. Prerequisites
-- [Node.js](https://nodejs.org/) (v18+)
-- [Python](https://www.python.org/) (3.9+)
-- [MongoDB](https://www.mongodb.com/try/download/community) (Local or Atlas)
+### Backend Setup
 
-### 2. Backend Setup
-1. Navigate to the backend directory:
+1. **Navigate to backend directory**:
    ```bash
    cd backend
    ```
-2. Create and activate a virtual environment (recommended):
+
+2. **Create and activate virtual environment**:
    ```bash
+   # Windows
    python -m venv venv
-   # Windows:
    venv\Scripts\activate
-   # macOS/Linux:
+   
+   # macOS/Linux
+   python3 -m venv venv
    source venv/bin/activate
    ```
-3. Install dependencies:
+
+3. **Install dependencies**:
    ```bash
    pip install -r requirements.txt
    ```
-4. Configure environment variables:
-   Create a `.env` file inside the `backend/` folder:
+
+4. **Configure environment variables**:
+   Create a `.env` file in the `backend/` directory:
    ```env
-   MONGO_URI=your_mongo_connection_string_here
+   MONGO_URI=mongodb://localhost:00000/supply-chain-predictor
    SERPER_API_KEY=your_serper_api_key_here
    OPENROUTER_API_KEY=your_openrouter_api_key_here
+   FLASK_ENV=development
+   ```
+
+5. **Run the backend server**:
+   ```bash
+   python app.py
+   ```
+   Server will start at `http://localhost:5000`
+
+### Frontend Setup
+
+1. **Navigate to frontend directory**:
+   ```bash
+   cd frontend
+   ```
+
+2. **Install dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Start development server**:
+   ```bash
+   npm run dev
+   ```
+   Application will open at `http://localhost:5173`
+
+4. **Build for production**:
+   ```bash
+   npm run build
    ```
 5. Run the backend server:
    ```bash
