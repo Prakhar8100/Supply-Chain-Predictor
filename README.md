@@ -75,7 +75,7 @@ Before you begin, ensure you have:
 4. **Configure environment variables**:
    Create a `.env` file in the `backend/` directory:
    ```env
-   MONGO_URI=mongodb://localhost:00000/supply-chain-predictor
+   MONGO_URI=Your_MongoDB_URL
    SERPER_API_KEY=your_serper_api_key_here
    OPENROUTER_API_KEY=your_openrouter_api_key_here
    FLASK_ENV=development
