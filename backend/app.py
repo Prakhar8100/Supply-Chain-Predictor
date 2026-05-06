@@ -4,15 +4,26 @@ import json
 import requests
 import time
 from datetime import datetime, timedelta
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response
 from flask_cors import CORS
 from dotenv import load_dotenv
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
+# Assuming your db.py is set up correctly in the same directory
 from db import shipments_collection
 
 load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
+
+# --- NEW: Initialize Rate Limiter to protect against DDoS / Spam ---
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"]
+)
 
 SERPER_API_KEY = os.getenv("SERPER_API_KEY")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -93,7 +104,8 @@ def analyze_route_with_gemma(route_list, serper_context):
                 response.raise_for_status()
                 break
             except requests.exceptions.HTTPError as e:
-                if response.status_code == 429:
+                # --- FIX: Safely check for 429 without crashing if response is missing ---
+                if e.response is not None and e.response.status_code == 429:
                     print(f"[AI WARNING] Rate limit hit (429). Retrying in 5 seconds... (Attempt {attempt + 1}/3)")
                     time.sleep(5)
                     if attempt == 2:
@@ -114,7 +126,7 @@ def analyze_route_with_gemma(route_list, serper_context):
         print(f"[AI ERROR] Analysis failed: {e}")
         return None
 
-# --- NEW: Health Check Route to fix Render 404 Errors ---
+# --- Health Check Routes ---
 @app.route('/', methods=['GET'])
 def health_check():
     return jsonify({"status": "Smartpath API is running natively", "version": "1.0"}), 200
@@ -130,9 +142,17 @@ def get_shipments():
         return jsonify({"error": "user_id is required"}), 400
         
     shipments = list(shipments_collection.find({"user_id": user_id}, {'_id': 0}))
-    return jsonify(shipments), 200
+    
+    # --- FIX: Anti-Browser Caching Headers so React always shows the newest data ---
+    response = make_response(jsonify(shipments))
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    
+    return response, 200
 
 @app.route('/api/shipments', methods=['POST'])
+@limiter.limit("1 per 3 seconds") # --- FIX: Blocks rapid-fire frontend spam ---
 def create_shipment():
     data = request.json
     user_id = data.get('user_id')
@@ -142,8 +162,24 @@ def create_shipment():
         return jsonify({"error": "user_id and route are required"}), 400
         
     route_list = [city.strip() for city in route_string.split(',')]
-    
     print(f"[INFO] Processing shipment for {user_id} with route {route_list}")
+    
+    # --- FIX: Cache Check (Prevents burning API credits for identical, back-to-back requests) ---
+    try:
+        ten_minutes_ago = (datetime.now() - timedelta(minutes=10)).isoformat()
+        existing_prediction = shipments_collection.find_one({
+            "user_id": user_id,
+            "original_route": route_list,
+            "timestamp": {"$gte": ten_minutes_ago} 
+        })
+
+        if existing_prediction:
+            print("[CACHE HIT] Returning recent analysis to save OpenRouter credits.")
+            if '_id' in existing_prediction: 
+                del existing_prediction['_id']
+            return jsonify(existing_prediction), 201
+    except Exception as e:
+        print(f"[CACHE ERROR] Skipping cache check due to error: {e}")
     
     # Check traffic for the route
     search_query = f"live road traffic accidents road closures weather {' to '.join(route_list)}"
@@ -173,7 +209,6 @@ def create_shipment():
         suggested_route = route_list
 
     # 2. THE BETTER ROUTE FEATURE (Hackathon Override)
-    # If AI detects risk but forgets to reroute, the backend forces it here
     if risk_score > 50 and affected_location and affected_location.lower() != "none":
         recalculated_route = [city for city in route_list if city.strip().lower() != affected_location.strip().lower()]
         # Ensure we don't accidentally delete the whole route
@@ -188,11 +223,14 @@ def create_shipment():
         "state": "Monitoring" if risk_score < 50 else "Action Required"
     }
     
+    # Generate a fresh ISO timestamp for the database
+    current_timestamp = datetime.now().isoformat()
+    
     shipment_doc = {
         "user_id": user_id,
         "original_route": route_list,
         "ai_result": final_ai_result, 
-        "timestamp": data.get('timestamp', '')
+        "timestamp": data.get('timestamp', current_timestamp)
     }
     
     shipments_collection.insert_one(shipment_doc)
@@ -204,6 +242,5 @@ def create_shipment():
     return jsonify(shipment_doc), 201
 
 if __name__ == '__main__':
-    # --- FIXED: Render requires binding to 0.0.0.0 and a dynamic port ---
     port = int(os.environ.get('PORT', 10000))
     app.run(host='0.0.0.0', port=port, debug=False)
