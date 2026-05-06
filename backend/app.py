@@ -82,7 +82,7 @@ def analyze_route_with_gemma(route_list, serper_context):
         }
         
         data = {
-            "model": "google/gemini-2.0-flash", # Updated to stable Flash identifier
+            "model": "google/gemini-2.0-flash-001", # Updated with the correct ID
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1
         }
