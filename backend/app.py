@@ -93,7 +93,7 @@ def analyze_route_with_gemma(route_list, serper_context):
         }
         
         data = {
-            "model": "google/gemma-3-12b-it:free",
+            "model": "google/gemini-2.5-flash", # <--- Use this string
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1
         }
