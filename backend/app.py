@@ -18,7 +18,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# --- NEW: Initialize Rate Limiter to protect against DDoS / Spam ---
+# Initialize Rate Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -43,14 +43,12 @@ def fetch_serper_data(query):
             except (requests.exceptions.ConnectionError, requests.exceptions.Timeout) as ce:
                 print(f"[SERPER WARNING] Attempt {attempt + 1} failed: {ce}")
                 time.sleep(1)
-                if attempt == 2:
-                    raise ce
+                if attempt == 2: raise ce
     except Exception as e:
-        print(f"[SERPER ERROR] Failed to fetch data for query '{query}': {e}")
+        print(f"[SERPER ERROR] Failed to fetch data: {e}")
         return None
 
 def extract_json_from_text(text):
-    # Strip out markdown that crashes standard JSON parsers
     text = text.replace("```json", "").replace("```", "").strip()
     match = re.search(r'\{.*\}', text, re.DOTALL)
     if match:
@@ -63,29 +61,20 @@ def extract_json_from_text(text):
 
 def analyze_route_with_gemma(route_list, serper_context):
     try:
-        # Grab today's real date to ground the AI in the present timeline
         today_date = datetime.now().strftime("%A, %B %d, %Y")
-
         prompt = f"""
         You are an AI logistics expert. Today's date is {today_date}.
         Analyze this route: {', '.join(route_list)}.
         Context from web search: {serper_context}
         
-        If there are any risks, identify the specific 'affected_location' city.
         Return a JSON object with:
         - risk_score (0-100)
-        - affected_location (string, or "None" if safe)
-        - suggested_route (ARRAY of strings, removing the blocked city if risk_score > 50)
-        - situation_analysis (string, a 2-3 sentence summary explaining the current weather/traffic situation and if any alternative routes are better)
+        - affected_location (string, or "None")
+        - suggested_route (ARRAY of strings)
+        - situation_analysis (string, 2-3 sentences)
         
-        Return ONLY valid JSON. Do not use markdown blocks.
+        Return ONLY valid JSON.
         """
-        
-        keywords = ["closed", "landslide", "blocked", "heavy traffic", "ice to snow", "accident", "crash", "jam", "severe traffic"]
-        if any(kw in serper_context.lower() for kw in keywords):
-            prompt = "PRIORITY WARNING: Severe disruption detected in search results! Adjust risk score heavily.\n" + prompt
-
-        print(f"[AI REQUEST] Sending prompt to Google Gemma 3 via OpenRouter...")
         
         headers = {
             "Authorization": f"Bearer {OPENROUTER_API_KEY}",
@@ -93,7 +82,7 @@ def analyze_route_with_gemma(route_list, serper_context):
         }
         
         data = {
-            "model": "google/gemini-2.5-flash", # <--- Use this string
+            "model": "google/gemini-2.0-flash", # Updated to stable Flash identifier
             "messages": [{"role": "user", "content": prompt}],
             "temperature": 0.1
         }
@@ -101,146 +90,109 @@ def analyze_route_with_gemma(route_list, serper_context):
         for attempt in range(3):
             try:
                 response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data, timeout=15)
+                
+                # --- NEW: CRITICAL LOGGING ---
+                if response.status_code != 200:
+                    print(f"[OPENROUTER FULL ERROR]: {response.status_code} - {response.text}")
+                
                 response.raise_for_status()
                 break
             except requests.exceptions.HTTPError as e:
-                # --- FIX: Safely check for 429 without crashing if response is missing ---
                 if e.response is not None and e.response.status_code == 429:
-                    print(f"[AI WARNING] Rate limit hit (429). Retrying in 5 seconds... (Attempt {attempt + 1}/3)")
+                    print(f"[AI WARNING] Rate limit (429). Retrying... {attempt + 1}/3")
                     time.sleep(5)
-                    if attempt == 2:
-                        raise e
-                else:
-                    raise e
+                    continue
+                raise e
         
         result_text = response.json()["choices"][0]["message"]["content"]
-        print(f"[AI RESPONSE] {result_text}")
-        
         parsed_json = extract_json_from_text(result_text)
-        if parsed_json:
-            return parsed_json
-        else:
-            raise ValueError("Could not extract JSON from response")
+        return parsed_json if parsed_json else None
             
     except Exception as e:
         print(f"[AI ERROR] Analysis failed: {e}")
         return None
 
-# --- Health Check Routes ---
 @app.route('/', methods=['GET'])
 def health_check():
-    return jsonify({"status": "Smartpath API is running natively", "version": "1.0"}), 200
-
-@app.route('/favicon.ico')
-def favicon():
-    return '', 204
+    return jsonify({"status": "Smartpath API is running", "version": "1.1"}), 200
 
 @app.route('/api/shipments', methods=['GET'])
 def get_shipments():
     user_id = request.args.get('user_id')
     if not user_id:
-        return jsonify({"error": "user_id is required"}), 400
+        return jsonify({"error": "user_id required"}), 400
         
     shipments = list(shipments_collection.find({"user_id": user_id}, {'_id': 0}))
     
-    # --- FIX: Anti-Browser Caching Headers so React always shows the newest data ---
+    # Anti-Browser Caching
     response = make_response(jsonify(shipments))
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
-    
     return response, 200
 
 @app.route('/api/shipments', methods=['POST'])
-@limiter.limit("1 per 3 seconds") # --- FIX: Blocks rapid-fire frontend spam ---
+@limiter.limit("1 per 3 seconds")
 def create_shipment():
     data = request.json
     user_id = data.get('user_id')
     route_string = data.get('route')
     
     if not user_id or not route_string:
-        return jsonify({"error": "user_id and route are required"}), 400
+        return jsonify({"error": "Missing data"}), 400
         
     route_list = [city.strip() for city in route_string.split(',')]
-    print(f"[INFO] Processing shipment for {user_id} with route {route_list}")
     
-    # --- FIX: Cache Check (Prevents burning API credits for identical, back-to-back requests) ---
-    try:
-        ten_minutes_ago = (datetime.now() - timedelta(minutes=10)).isoformat()
-        existing_prediction = shipments_collection.find_one({
-            "user_id": user_id,
-            "original_route": route_list,
-            "timestamp": {"$gte": ten_minutes_ago} 
-        })
+    # 1. Cache Check (10-minute window)
+    ten_minutes_ago = (datetime.now() - timedelta(minutes=10)).isoformat()
+    existing = shipments_collection.find_one({
+        "user_id": user_id,
+        "original_route": route_list,
+        "timestamp": {"$gte": ten_minutes_ago}
+    })
 
-        if existing_prediction:
-            print("[CACHE HIT] Returning recent analysis to save OpenRouter credits.")
-            if '_id' in existing_prediction: 
-                del existing_prediction['_id']
-            return jsonify(existing_prediction), 201
-    except Exception as e:
-        print(f"[CACHE ERROR] Skipping cache check due to error: {e}")
+    if existing:
+        if '_id' in existing: del existing['_id']
+        return jsonify(existing), 201
     
-    # Check traffic for the route
-    search_query = f"live road traffic accidents road closures weather {' to '.join(route_list)}"
+    # 2. Traffic Context
+    search_query = f"live road traffic accidents closures weather {' to '.join(route_list)}"
     serper_data = fetch_serper_data(search_query)
-    
     serper_context = ""
     if serper_data and 'organic' in serper_data:
-        snippets = [item.get('snippet', '') for item in serper_data['organic'][:3]]
-        serper_context = " ".join(snippets)
+        serper_context = " ".join([item.get('snippet', '') for item in serper_data['organic'][:3]])
     
-    print(f"[INFO] Serper Context: {serper_context}")
-    
+    # 3. AI Prediction
     ai_result = analyze_route_with_gemma(route_list, serper_context)
     
-    # --- THE BULLETPROOF DATA NORMALIZER ---
+    # Normalizer Fallback
     if not ai_result:
-        ai_result = {}
-
-    risk_score = int(ai_result.get("risk_score", 15))
-    affected_location = ai_result.get("affected_location", "")
-
-    # 1. Guarantee suggested_route is an array (Prevents React from crashing)
-    suggested_route = ai_result.get("suggested_route", route_list)
-    if isinstance(suggested_route, str):
-        suggested_route = [c.strip() for c in suggested_route.split(",")]
-    if not isinstance(suggested_route, list):
-        suggested_route = route_list
-
-    # 2. THE BETTER ROUTE FEATURE (Hackathon Override)
-    if risk_score > 50 and affected_location and affected_location.lower() != "none":
-        recalculated_route = [city for city in route_list if city.strip().lower() != affected_location.strip().lower()]
-        # Ensure we don't accidentally delete the whole route
-        if len(recalculated_route) > 1:
-            suggested_route = recalculated_route
+        ai_result = {
+            "risk_score": 15,
+            "affected_location": "None",
+            "suggested_route": route_list,
+            "situation_analysis": "No detailed situation analysis available."
+        }
 
     final_ai_result = {
-        "risk_score": risk_score,
-        "affected_location": affected_location if affected_location else "None",
-        "suggested_route": suggested_route,
-        "situation_analysis": ai_result.get("situation_analysis", "No detailed situation analysis available."),
-        "state": "Monitoring" if risk_score < 50 else "Action Required"
+        "risk_score": int(ai_result.get("risk_score", 15)),
+        "affected_location": ai_result.get("affected_location", "None"),
+        "suggested_route": ai_result.get("suggested_route", route_list),
+        "situation_analysis": ai_result.get("situation_analysis", "No detailed analysis available."),
+        "state": "Monitoring" if int(ai_result.get("risk_score", 0)) < 50 else "Action Required"
     }
-    
-    # Generate a fresh ISO timestamp for the database
-    current_timestamp = datetime.now().isoformat()
     
     shipment_doc = {
         "user_id": user_id,
         "original_route": route_list,
         "ai_result": final_ai_result, 
-        "timestamp": data.get('timestamp', current_timestamp)
+        "timestamp": datetime.now().isoformat()
     }
     
     shipments_collection.insert_one(shipment_doc)
-    
-    # Remove _id for JSON serialization
-    if '_id' in shipment_doc:
-        del shipment_doc['_id']
-        
+    if '_id' in shipment_doc: del shipment_doc['_id']
     return jsonify(shipment_doc), 201
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 10000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    app.run(host='0.0.0.0', port=port)
