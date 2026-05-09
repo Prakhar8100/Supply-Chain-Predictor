@@ -2,12 +2,12 @@
 
 > **AI-Powered Logistics Rerouter & Supply Chain Risk Predictor**
 
-SmartPath is an intelligent logistics platform that analyzes shipment routes in real-time using live web data and AI-driven insights. It fetches real-time traffic, accidents, and weather data via Serper API, then uses Google Gemma 3 to assess risks and automatically generate optimized alternative routes when disruptions are detected.
+SmartPath is an intelligent logistics platform that analyzes shipment routes in real-time using live web data and AI-driven insights. It fetches real-time traffic, accidents, and weather data via Serper API, then uses Google Gemini to assess risks and automatically generate optimized alternative routes when disruptions are detected.
 
 ## 🎯 Key Features
 
 - **🔍 Live Disruption Detection**: Real-time web scraping for traffic accidents, road closures, and severe weather conditions
-- **🤖 AI-Powered Route Optimization**: Google Gemma 3 12B analyzes risks and dynamically suggests alternative routes
+- **🤖 AI-Powered Route Optimization**: Google Gemini analyzes risks and dynamically suggests alternative routes
 - **⚡ Smart Rate-Limit Handling**: Automatic 429 error recovery with graceful backoff mechanism for reliable API operations
 - **🏢 Zero-Login Multi-Tenancy**: Fleet-based data isolation with no authentication required
 - **📊 Real-Time Dashboard**: Glassmorphism UI with color-coded risk indicators (Monitoring vs. Action Required)
@@ -31,7 +31,7 @@ SmartPath is an intelligent logistics platform that analyzes shipment routes in 
 
 ### External APIs
 - **Search Data**: [Serper.dev](https://serper.dev) (Google Search API)
-- **AI Model**: [OpenRouter](https://openrouter.ai) - Google Gemma 3 12B (Free Tier)
+- **AI Model**: [OpenRouter](https://openrouter.ai) - Google Gemini
 
 ---
 
